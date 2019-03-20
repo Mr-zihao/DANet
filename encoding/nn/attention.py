@@ -81,4 +81,31 @@ class CAM_Module(Module):
 
         out = self.gamma*out + x
         return out
+class CH_POINT_ATT_Module(Module):
+    '''
+    adjust the channel distribution of each feature
+    '''
+    def __init__(self,in_channels,out_channels):
+        super(CH_POINT_ATTENTION_Module,self).__init__()
+        
+        self.in_channels=in_channels
+        self.out_channels=out_channels
+        self.conv1=Conv2d(in_channels,out_channels,kernel_size=1)
+        self.conv2=Conv2d(in_channels,out_channels,kernel_size=1)
+        self.conv3=Conv2d(in_channels,out_channels,kernel_size=1)
+        self.softmax=Softmax(dim=1)
+    def forward(self,x):
+        m_batchsize,C,height,width=x.size()
+
+        up_barach=self.conv1(x)
+
+        middle_branch=self.conv2(x)
+
+        weight=self.softmax(middle_branch)
+
+        down_branch=self.conv3(x)
+
+        weight_branch=down_branch*weight
+
+        return up_branch+weight_branch
 
