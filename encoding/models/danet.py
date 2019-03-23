@@ -12,6 +12,7 @@ from torch.nn.functional import upsample,normalize
 from ..nn import PAM_Module
 from ..nn import CAM_Module
 from ..nn import CH_POINT_ATT_Module
+from ..nn import UP_Sampling
 from ..models import BaseNet
 
 
@@ -47,6 +48,8 @@ class DANet(BaseNet):
 
         x = self.head(c4)
         x = list(x)
+        
+
         x[0] = upsample(x[0], imsize, **self._up_kwargs)
         x[1] = upsample(x[1], imsize, **self._up_kwargs)
         x[2] = upsample(x[2], imsize, **self._up_kwargs)
@@ -71,6 +74,9 @@ class DANetHead(nn.Module):
         self.sa = PAM_Module(inter_channels)
         self.sc = CAM_Module(inter_channels)
         self.cpa=CH_POINT_ATT_Module(inter_channels,inter_channels)
+        self.upa1=UP_Sampling(inter_channels)
+        self.upc1=UP_Sampling(inter_channels)
+        self.upac1=UP_Sampling(inter_channels)
 
 
         self.conv51 = nn.Sequential(nn.Conv2d(inter_channels, inter_channels, 3, padding=1, bias=False),
@@ -83,34 +89,38 @@ class DANetHead(nn.Module):
                                    norm_layer(inter_channels),
                                    nn.ReLU())
 
+        self.conv6 = nn.Sequential(nn.Dropout2d(0.1, False), nn.Conv2d(inter_channels, out_channels, 1))
 
+        self.conv7 = nn.Sequential(nn.Dropout2d(0.1, False), nn.Conv2d(inter_channels, out_channels, 1))
 
-        self.conv6 = nn.Sequential(nn.Dropout2d(0.1, False), nn.Conv2d(512, out_channels, 1))
-        self.conv7 = nn.Sequential(nn.Dropout2d(0.1, False), nn.Conv2d(512, out_channels, 1))
-
-        self.conv8 = nn.Sequential(nn.Dropout2d(0.1, False), nn.Conv2d(512, out_channels, 1))
+        self.conv8 = nn.Sequential(nn.Dropout2d(0.1, False), nn.Conv2d(inter_channels, out_channels, 1))
 
     def forward(self, x):
         feat1 = self.conv5a(x)
-        sa_feat = self.sa(feat1)
-        sa_conv = self.conv51(sa_feat)
-        sa_output = self.conv6(sa_conv)
+        sa_feat   = self.sa(feat1)
+        sa_conv   = self.conv51(sa_feat)
+        sa_up     = self.upa1(sa_conv)
+        sa_output = self.conv6(sa_up)
 
         feat2     = self.conv5c(x)
         sc_feat   = self.sc(feat2)
         sc_conv   = self.conv52(sc_feat)
-        sc_output = self.conv7(sc_conv)
+        sc_up     = self.upc1(sc_conv)
+        sc_output = self.conv7(sc_up)
 
-        feat_sum = sa_conv+sc_conv
+        feat_sum  = sa_conv+sc_conv
         
-        #sasc_output = self.conv8(feat_sum)
+        sasc_up   =self.upac1(feat_sum)
 
-        cpa_feat= self.cpa(feat_sum)
-        cpa_conv=self.conv53(cpa_feat)
-        cpa_output=self.conv8(cpa_conv)
+        sasc_output = self.conv8(sasc_up)
+
+        #cpa_feat= self.cpa(feat_sum)
+        #cpa_conv=self.conv53(cpa_feat)
+        #cpa_output=self.conv8(cpa_conv)
 
 
-        output = [cpa_output]
+        #output = [cpa_output]
+        output.append(sasc_output)
         output.append(sa_output)
         output.append(sc_output)
         return tuple(output)

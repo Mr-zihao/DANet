@@ -18,7 +18,7 @@ from torch.autograd import Variable
 torch_ver = torch.__version__[:3]
 
 __all__ = ['GramMatrix', 'SegmentationLosses', 'View', 'Sum', 'Mean',
-           'Normalize', 'PyramidPooling','SegmentationMultiLosses']
+           'Normalize', 'PyramidPooling','SegmentationMultiLosses','UP_Sampling']
 
 class GramMatrix(Module):
     r""" Gram Matrix for a 4D convolutional featuremaps as a mini-batch
@@ -205,6 +205,36 @@ class PyramidPooling(Module):
         feat3 = F.upsample(self.conv3(self.pool3(x)), (h, w), **self._up_kwargs)
         feat4 = F.upsample(self.conv4(self.pool4(x)), (h, w), **self._up_kwargs)
         return torch.cat((x, feat1, feat2, feat3, feat4), 1)
+class UP_Sampling(Module):
+    def __init__(self,in_channels):
+        super(UP_Sample,self).__init__()
+        self.horizon_conv = Sequential(Conv2d(in_channels, in_channels, (1,2), padding=(0,1),bias=False),
+                                norm_layer(out_channels),
+                                ReLU(True))
+        self.vertical_conv = Sequential(Conv2d(in_channels, in_channels, (2,1),padding=(1,0), bias=False),
+                                norm_layer(out_channels),
+                                Relu(True))
+        self.diagonal_conv = Sequential(Conv2d(in_channels, in_channels, (2,2),padding=(1,1), bias=False),
+                                norm_layer(out_channels),
+                                Relu(True))
+    def forward(self,x):
 
+        N,C,H,W=x.size()
+        
+        right_insert = self.horizon_conv(x)[:,:,:,1:]
 
+        down_insert  = self.vertical_conv(x)[:,:,1:,:]
 
+        diagonal_insert = self.diagonal_conv(x)[:,:,1:,1:]
+
+        fusion_result = torch.ones((N,C,2*H,2*W))
+
+        fusion_result[:,:,::2,::2] = x
+
+        fusion_result[:,:,::2,1::2] = right_insert
+
+        fusion_result[:,:,1::2,::2] = down_insert
+
+        fusion_result[:,:,1::2,1::2] = diagonal_result
+
+        return fusion_result
