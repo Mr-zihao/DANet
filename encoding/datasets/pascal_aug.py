@@ -14,7 +14,7 @@ class VOCAugSegmentation(BaseDataset):
         'tv'
     ]
     NUM_CLASS = 21
-    TRAIN_BASE_DIR = 'VOCaug/dataset/'
+    TRAIN_BASE_DIR = 'benchmark/dataset/'
     def __init__(self, root, split='train', mode=None, transform=None, 
                  target_transform=None, **kwargs):
         super(VOCAugSegmentation, self).__init__(root, split, mode, transform,
@@ -24,7 +24,7 @@ class VOCAugSegmentation(BaseDataset):
         _mask_dir = os.path.join(_voc_root, 'cls')
         _image_dir = os.path.join(_voc_root, 'img')
         if self.mode == 'train':
-            _split_f = os.path.join(_voc_root, 'trainval.txt')
+            _split_f = os.path.join(_voc_root, 'train_aug.txt')
         elif self.mode == 'val':
             _split_f = os.path.join(_voc_root, 'val.txt')
         else:
@@ -43,6 +43,12 @@ class VOCAugSegmentation(BaseDataset):
 
         assert (len(self.images) == len(self.masks))
 
+    def _mask_transform(self, mask):
+        target = np.array(mask).astype('int32')
+        target[target == 255] = -1
+        return torch.from_numpy(target).long()
+
+
     def __getitem__(self, index):
         _img = Image.open(self.images[index]).convert('RGB')
         if self.mode == 'test':
@@ -52,7 +58,7 @@ class VOCAugSegmentation(BaseDataset):
         _target = self._load_mat(self.masks[index])
         # synchrosized transform
         if self.mode == 'train':
-            _img, _target = self._sync_transform( _img, _target)
+            _img, _target = self._sync_transform(_img, _target)
         elif self.mode == 'val':
             _img, _target = self._val_sync_transform( _img, _target)
         # general resize, normalize and toTensor
@@ -63,9 +69,8 @@ class VOCAugSegmentation(BaseDataset):
         return _img, _target
     
     def _load_mat(self, filename):
-        mat = scipy.io.loadmat(filename, mat_dtype=True, squeeze_me=True, 
-            struct_as_record=False)
-        mask = mat['GTcls'].Segmentation
+        mat = scipy.io.loadmat(filename)
+        mask = mat['GTcls']
         return Image.fromarray(mask)
 
     def __len__(self):
